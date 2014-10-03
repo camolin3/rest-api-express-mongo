@@ -1,15 +1,15 @@
 var superagent = require('superagent')
 var expect = require('expect.js')
 
-describe('express rest api server', function(){
+describe('express rest api server', function() {
   var id
 
-  it('posts an object', function(done){
-    superagent.post('http://localhost:3000/collections/test')
+  it('posts an object', function(done) {
+    superagent.post('http://localhost:28017/collections/tweets')
       .send({ name: 'John'
         , email: 'john@rpjs.co'
       })
-      .end(function(e, res){
+      .end(function(e, res) {
         // console.log(res.body)
         expect(e).to.eql(null)
         expect(res.body.length).to.eql(1)
@@ -19,9 +19,9 @@ describe('express rest api server', function(){
       })
   })
 
-  it('retrieves an object', function(done){
-    superagent.get('http://localhost:3000/collections/test/'+id)
-      .end(function(e, res){
+  it('retrieves an object', function(done) {
+    superagent.get('http://localhost:28017/collections/tweets/'+id)
+      .end(function(e, res) {
         // console.log(res.body)
         expect(e).to.eql(null)
         expect(typeof res.body).to.eql('object')
@@ -31,22 +31,22 @@ describe('express rest api server', function(){
       })
   })
 
-  it('retrieves a collection', function(done){
-    superagent.get('http://localhost:3000/collections/test')
-      .end(function(e, res){
+  it('retrieves a collection', function(done) {
+    superagent.get('http://localhost:28017/collections/tweets')
+      .end(function(e, res) {
         // console.log(res.body)
         expect(e).to.eql(null)
         expect(res.body.length).to.be.above(0)
-        expect(res.body.map(function (item){return item._id})).to.contain(id)
+        expect(res.body.map(function (item) {return item._id})).to.contain(id)
         done()
       })
   })
 
-  it('updates an object', function(done){
-    superagent.put('http://localhost:3000/collections/test/'+id)
+  it('updates an object', function(done) {
+    superagent.put('http://localhost:28017/collections/tweets/'+id)
       .send({name: 'Peter'
         , email: 'peter@yahoo.com'})
-      .end(function(e, res){
+      .end(function(e, res) {
         // console.log(res.body)
         expect(e).to.eql(null)
         expect(typeof res.body).to.eql('object')
@@ -55,9 +55,9 @@ describe('express rest api server', function(){
       })
   })
 
-  it('checks an updated object', function(done){
-    superagent.get('http://localhost:3000/collections/test/'+id)
-      .end(function(e, res){
+  it('checks an updated object', function(done) {
+    superagent.get('http://localhost:28017/collections/tweets/'+id)
+      .end(function(e, res) {
         // console.log(res.body)
         expect(e).to.eql(null)
         expect(typeof res.body).to.eql('object')
@@ -67,9 +67,9 @@ describe('express rest api server', function(){
         done()
       })
   })
-  it('removes an object', function(done){
-    superagent.del('http://localhost:3000/collections/test/'+id)
-      .end(function(e, res){
+  it('removes an object', function(done) {
+    superagent.del('http://localhost:28017/collections/tweets/'+id)
+      .end(function(e, res) {
         // console.log(res.body)
         expect(e).to.eql(null)
         expect(typeof res.body).to.eql('object')
