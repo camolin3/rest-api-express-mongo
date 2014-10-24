@@ -31,11 +31,11 @@ app.all('*', function(req, res, next) {
 });
 
 app.get('/', function(req, res, next) {
-  res.send('please select a collection, e.g., /collections/messages');
+  res.send('please select a collection, e.g., /tweets');
 });
 
-app.get('/collections/:collectionName', function(req, res, next) {
-  req.collection.find({}, {limit: 10, sort: {'_id': -1}}).toArray(function(e, results) {
+app.get('/:collectionName', function(req, res, next) {
+  req.collection.find({}, {limit: 30, sort: {'_id': -1}}).toArray(function(e, results) {
     if (e) return next(e);
     var json = {},
         wrapperName = req.params.collectionName;
@@ -44,7 +44,7 @@ app.get('/collections/:collectionName', function(req, res, next) {
   });
 });
 
-app.post('/collections/:collectionName', function(req, res, next) {
+app.post('/:collectionName', function(req, res, next) {
   var coordinates = req.body.tweet.geo.coordinates;
   var newTweet = {
     status: req.body.tweet.text, 
@@ -65,7 +65,7 @@ app.post('/collections/:collectionName', function(req, res, next) {
   });
 });
 
-app.get('/collections/:collectionName/:id', function(req, res, next) {
+app.get('/:collectionName/:id', function(req, res, next) {
   req.collection.findById(req.params.id, function(e, result) {
     if (e) return next(e);
     var json = {},
@@ -75,7 +75,7 @@ app.get('/collections/:collectionName/:id', function(req, res, next) {
   });
 });
 
-app.put('/collections/:collectionName/:id', function(req, res, next) {
+app.put('/:collectionName/:id', function(req, res, next) {
   req.collection.updateById(req.params.id, {$set: req.body}, 
                             {safe: true, multi: false}, function(e, result) {
     if (e) return next(e);
@@ -83,7 +83,7 @@ app.put('/collections/:collectionName/:id', function(req, res, next) {
   });
 });
 
-app.delete('/collections/:collectionName/:id', function(req, res, next) {
+app.delete('/:collectionName/:id', function(req, res, next) {
   req.collection.removeById(req.params.id, function(e, result) {
     if (e) return next(e);
     res.send((result === 1) ? {msg: 'success'} : {msg: 'error'});
