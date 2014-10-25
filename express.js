@@ -45,11 +45,11 @@ app.get('/:collectionName', function(req, res, next) {
 });
 
 app.post('/:collectionName', function(req, res, next) {
-  var coordinates = req.body.tweet.geo.coordinates;
+  var coordinates = req.body.tweet.coordinates.coordinates;
   var newTweet = {
     status: req.body.tweet.text, 
-    lat: coordinates[0], 
-    long: coordinates[1],
+    long: coordinates[0],
+    lat: coordinates[1], 
     display_coordinates: true
   };
   t.post('statuses/update', newTweet, function(error, data, response) {
@@ -83,11 +83,13 @@ app.put('/:collectionName/:id', function(req, res, next) {
   });
 });
 
+/*
 app.delete('/:collectionName/:id', function(req, res, next) {
   req.collection.removeById(req.params.id, function(e, result) {
     if (e) return next(e);
     res.send((result === 1) ? {msg: 'success'} : {msg: 'error'});
   });
 });
+*/
 
 app.listen(28017);
