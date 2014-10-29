@@ -48,7 +48,8 @@ app.post('/:collectionName', function(req, res, next) {
   var coordinates = req.body.tweet.coordinates.coordinates;
   var newTweet = {
     status: req.body.tweet.text, 
-    long: coordinates[0],
+    in_reply_to_status_id: req.body.tweet.in_reply_to_status_id, 
+    long: coordinates[0], 
     lat: coordinates[1], 
     display_coordinates: true
   };
@@ -91,5 +92,27 @@ app.delete('/:collectionName/:id', function(req, res, next) {
   });
 });
 */
+
+app.get('/:collectionName/channel/:channel', function(req, res, next) {
+  req.collection.find({channel: req.params.channel}, {limit: 30, 
+    sort: {'_id': -1}}).toArray(function(e, results) {
+    if (e) return next(e);
+    var json = {},
+        wrapperName = req.params.collectionName;
+    json[wrapperName] = results;
+    res.send(json);
+  });
+});
+
+app.get('/:collectionName/:id/comments', function(req, res, next) {
+  req.collection.find({in_reply_to_status_id: req.params.id}, {limit: 30, 
+    sort: {'_id': -1}}).toArray(function(e, results) {
+    if (e) return next(e);
+    var json = {},
+        wrapperName = 'comments';
+    json[wrapperName] = results;
+    res.send(json);
+  });
+});
 
 app.listen(28017);
