@@ -26,7 +26,7 @@ app.param('collectionName', function(req, res, next, collectionName) {
 
 app.all('*', function(req, res, next) { 
   res.header("Access-Control-Allow-Origin", "*"); 
-  res.header("Access-Control-Allow-Headers", "X-Requested-With"); 
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept"); 
   next(); 
 });
 
@@ -45,10 +45,11 @@ app.get('/:collectionName', function(req, res, next) {
 });
 
 app.post('/:collectionName', function(req, res, next) {
-  var coordinates = req.body.tweet.coordinates.coordinates;
+  var params = req.body.tweet, 
+      coordinates = params.coordinates.coordinates;
   var newTweet = {
-    status: req.body.tweet.text, 
-    in_reply_to_status_id: req.body.tweet.in_reply_to_status_id, 
+    status: params.text, 
+    in_reply_to_status_id: params.in_reply_to_status_id, 
     long: coordinates[0], 
     lat: coordinates[1], 
     display_coordinates: true
@@ -60,6 +61,7 @@ app.post('/:collectionName', function(req, res, next) {
       if (e) return next(e);
       var json = {},
           wrapperName = pluralize(req.params.collectionName, 1);
+      result.channel = params.channel;
       json[wrapperName] = result;
       res.send(json);
     });
