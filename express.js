@@ -25,7 +25,7 @@ app.param('collectionName', function(req, res, next, collectionName) {
 });
 
 app.all('*', function(req, res, next) { 
-  res.header("Access-Control-Allow-Origin", "*"); 
+  res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept"); 
   next(); 
 });
@@ -35,7 +35,8 @@ app.get('/', function(req, res, next) {
 });
 
 app.get('/:collectionName', function(req, res, next) {
-  req.collection.find({}, {limit: 30, sort: {'_id': -1}}).toArray(function(e, results) {
+  req.collection.find({in_reply_to_status_id: null}, 
+    {limit: 30, sort: {'_id': -1}}).toArray(function(e, results) {
     if (e) return next(e);
     var json = {},
         wrapperName = req.params.collectionName;
