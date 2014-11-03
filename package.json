@@ -1,5 +1,5 @@
 {
-  "name": "rest-api-express",
+  "name": "rest-api-express-mongo",
   "version": "0.0.4",
   "description": "",
   "main": "express.js",
@@ -9,18 +9,17 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/azat-co/rest-api-express.git"
+    "url": "https://github.com/camolin3/rest-api-express-mongo.git"
   },
-  "author": "Azat Mardan",
-  "license": "BSD-2-Clause",
+  "author": "Carlos Molina A.",
+  "license": "MPL 2.0",
   "bugs": {
-    "url": "https://github.com/azat-co/rest-api-express/issues"
+    "url": "https://github.com/camolin3/rest-api-express-mongo/issues"
   },
   "dependencies": {
     "body-parser": "1.0.2",
     "express": "4.8.1",
     "mongoskin": "1.4.1",
-    "pluralize": "^1.0.2",
     "twit": "^1.1.18"
   },
   "devDependencies": {
