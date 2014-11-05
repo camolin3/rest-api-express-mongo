@@ -3,6 +3,8 @@ var express = require('express'),
     bodyParser = require('body-parser'),
     Twit = require('twit');
 
+var EARTH_RADIUS_KM = 6371;
+
 var app = express();
 app.use(bodyParser());
 
@@ -31,7 +33,17 @@ app.get('/', function(req, res, next) {
 });
 
 app.get('/tweets', function(req, res, next) {
-  req.tweets.find({in_reply_to_status_id: null}, 
+  var query = {in_reply_to_status_id: null};
+  if (req.query.coordinates && req.query.radius)
+    query.coordinates = {$geoWithin: {
+      $centerSphere: [
+        [parseFloat(req.query.coordinates[0]), parseFloat(req.query.coordinates[1])],
+        req.query.radius / EARTH_RADIUS_KM
+      ]
+    }};
+  if (req.query.channel)
+    query.channel = req.params.channel;
+  req.tweets.find(query, 
     {limit: 30, sort: {'_id': -1}}).toArray(function(e, results) {
     if (e) return next(e);
     var json = {tweets: results};
@@ -85,15 +97,6 @@ app.delete('/tweets/:id', function(req, res, next) {
   });
 });
 */
-
-app.get('/tweets/channel/:channel', function(req, res, next) {
-  req.tweets.find({channel: req.params.channel}, {limit: 30, 
-    sort: {'_id': -1}}).toArray(function(e, results) {
-    if (e) return next(e);
-    var json = {tweets: results};
-    res.send(json);
-  });
-});
 
 app.get('/tweets/:id/comments', function(req, res, next) {
   req.tweets.find({in_reply_to_status_id: req.params.id}, {limit: 30, 
