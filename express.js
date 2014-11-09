@@ -33,17 +33,17 @@ app.get('/', function(req, res, next) {
 });
 
 app.get('/tweets', function(req, res, next) {
-  var query = {in_reply_to_status_id: null};
-  if (req.query.coordinates && req.query.radius)
-    query.coordinates = {$geoWithin: {
+  var newQuery = {in_reply_to_status_id: null};
+  if (req.query.lat && req.query.lng && req.query.within)
+    newQuery.coordinates = {$geoWithin: {
       $centerSphere: [
-        [parseFloat(req.query.coordinates[0]), parseFloat(req.query.coordinates[1])],
-        req.query.radius / EARTH_RADIUS_KM
+        [parseFloat(req.query.lng), parseFloat(req.query.lat)],
+        req.query.within / EARTH_RADIUS_KM
       ]
     }};
   if (req.query.channel)
-    query.channel = req.params.channel;
-  req.tweets.find(query, 
+    newQuery.channel = req.query.channel;
+  req.tweets.find(newQuery, 
     {limit: 30, sort: {'_id': -1}}).toArray(function(e, results) {
     if (e) return next(e);
     var json = {tweets: results};
@@ -62,11 +62,12 @@ app.post('/tweets', function(req, res, next) {
     display_coordinates: true
   };
   t.post('statuses/update', newTweet, function(error, data, response) {
-    if (error) console.log(error);
+    if (error) return next(error);
     // If succefully posted on Twitter, then save it on the db
+    // adding the 'channel' attribute
+    data.channel = params.channel;
     req.tweets.insert(data, {}, function(e, result) {
       if (e) return next(e);
-      result.channel = params.channel;
       var json = {tweet: result};
       res.send(json);
     });
