@@ -44,7 +44,10 @@ app.get('/tweets', function(req, res, next) {
   if (req.query.channel)
     newQuery.channel = req.query.channel;
   if (req.query.q)
-    newQuery.$text = {$search: req.query.q};
+    newQuery.$text = {
+      $search: req.query.q,
+      $language: 'es'
+    };
 
   var params = {
     limit: req.query.limit || 30,
