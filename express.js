@@ -43,8 +43,16 @@ app.get('/tweets', function(req, res, next) {
     }};
   if (req.query.channel)
     newQuery.channel = req.query.channel;
-  req.tweets.find(newQuery, 
-    {limit: 30, sort: {'_id': -1}}).toArray(function(e, results) {
+  if (req.query.q)
+    newQuery.$text = {$search: req.query.q};
+
+  var params = {
+    limit: req.query.limit || 30,
+    sort: {
+      _id: -1
+    }
+  };
+  req.tweets.find(newQuery, params).toArray(function(e, results) {
     if (e) return next(e);
     var json = {tweets: results};
     res.send(json);
