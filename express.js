@@ -23,16 +23,16 @@ var t = new Twit({
 app.all('*', function(req, res, next) { 
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-  if (!req.tweets)
-    req.tweets = db.collection('tweets');
+  if (!req.reports)
+    req.reports = db.collection('tweets');
   next();
 });
 
 app.get('/', function(req, res, next) {
-  res.send('please select a collection, e.g., /tweets');
+  res.send('please select a collection, e.g., /reports');
 });
 
-app.get('/tweets', function(req, res, next) {
+app.get('/reports', function(req, res, next) {
   var newQuery = {in_reply_to_status_id: null};
   if (req.query.lat && req.query.lng && req.query.within)
     newQuery.coordinates = {$geoWithin: {
@@ -55,68 +55,93 @@ app.get('/tweets', function(req, res, next) {
       _id: -1
     }
   };
-  req.tweets.find(newQuery, params).toArray(function(e, results) {
+  req.reports.find(newQuery, params).toArray(function(e, results) {
     if (e) return next(e);
-    var json = {tweets: results};
+    var json = {reports: results};
     res.send(json);
   });
 });
 
-app.post('/tweets', function(req, res, next) {
-  var params = req.body.tweet, 
+function postReport(req, res, next, model) {
+  var params = req.body[model], 
       coordinates = params.coordinates.coordinates;
-  var newTweet = {
+  var newReport = {
     status: params.text, 
     in_reply_to_status_id: params.in_reply_to_status_id, 
     long: coordinates[0], 
     lat: coordinates[1], 
     display_coordinates: true
   };
-  t.post('statuses/update', newTweet, function(error, data, response) {
+  t.post('statuses/update', newReport, function(error, data, response) {
     if (error) return next(error);
     // If succefully posted on Twitter, then save it on the db
     // adding the 'channel' attribute
     data.channel = params.channel;
-    req.tweets.insert(data, {}, function(e, result) {
+    // fixing the id
+    data.id = data.id_str;
+    data.in_reply_to_status_id = data.in_reply_to_status_id_str;
+    // adding the comment_ids
+    if (model == 'report')
+      data.comment_ids = [];
+    req.reports.insert(data, {}, function(e, result) {
       if (e) return next(e);
-      var json = {tweet: result};
+      // if it is a comment, update the original report
+      if (model == 'comment')
+        req.reports.update({id: params.in_reply_to_status_id}, {
+            $push: {comment_ids: data.id}
+          }, {safe: true, multi: false}, 
+          function(e,r) {
+            if (e) console.error('No pude actualizar la noticia original, '+e);
+            else console.log('Comentario ingresado');
+            console.log('se mandó a pushear: '+data.id);
+        });
+      var json = {};
+      json[model] = result;
       res.send(json);
     });
   });
+}
+
+app.post('/reports', function (req, res, next) {
+  postReport(req, res, next, 'report');
 });
 
-app.get('/tweets/:id', function(req, res, next) {
-  req.tweets.findById(req.params.id, function(e, result) {
+function getReport(req, res, next, model) {
+  req.reports.findOne(req.params, function(e, result) {
     if (e) return next(e);
-    var json = {tweet: result};
+    var json = {};
+    json[model] = result;
     res.send(json);
   });
+}
+
+app.get('/reports/:id', function(req, res, next) {
+  getReport(req, res, next, 'report');
 });
 
-app.put('/tweets/:id', function(req, res, next) {
-  req.tweets.updateById(req.params.id, {$set: req.body}, 
-                        {safe: true, multi: false}, function(e, result) {
+app.put('/reports/:id', function(req, res, next) {
+  req.reports.update({id: req.params.id}, {$set: req.body}, 
+                    {safe: true, multi: false}, function(e, result) {
     if (e) return next(e);
     res.send((result === 1) ? {msg:'success'} : {msg: 'error'});
   });
 });
 
 /*
-app.delete('/tweets/:id', function(req, res, next) {
-  req.tweets.removeById(req.params.id, function(e, result) {
+app.delete('/reports/:id', function(req, res, next) {
+  req.reports.removeById(req.params.id, function(e, result) {
     if (e) return next(e);
     res.send((result === 1) ? {msg: 'success'} : {msg: 'error'});
   });
 });
 */
 
-app.get('/tweets/:id/comments', function(req, res, next) {
-  req.tweets.find({in_reply_to_status_id: req.params.id}, {limit: 30, 
-    sort: {'_id': -1}}).toArray(function(e, results) {
-    if (e) return next(e);
-    var json = {comments: results};
-    res.send(json);
-  });
+app.get('/comments/:id', function(req, res, next) {
+  getReport(req, res, next, 'comment');
+});
+
+app.post('/comments/', function(req, res, next) {
+  postReport(req, res, next, 'comment');
 });
 
 app.listen(28017);
