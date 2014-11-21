@@ -20,6 +20,7 @@
     "body-parser": "1.0.2",
     "express": "4.8.1",
     "mongoskin": "1.4.4",
+    "promise": "^6.0.1",
     "twit": "^1.1.18"
   },
   "devDependencies": {

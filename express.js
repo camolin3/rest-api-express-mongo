@@ -1,12 +1,16 @@
 var express = require('express'),
     mongoskin = require('mongoskin'),
     bodyParser = require('body-parser'),
+    multer = require('multer'),
+    Promise = require('promise'),
     Twit = require('twit');
 
 var EARTH_RADIUS_KM = 6371;
 
 var app = express();
 app.use(bodyParser());
+app.use(multer({inMemory: true}));
+app.set('etag', false);
 
 var db = mongoskin.db(
   'mongodb://dsas3_cl:sro1pwRjGxS1@localhost:27017/streamsaster_development', 
@@ -21,8 +25,10 @@ var t = new Twit({
 });
 
 app.all('*', function(req, res, next) { 
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, '+
+             'Content-Type, Accept, X-File-Type, X-File-Name, X-File-Size');
+  res.header('Access-Control-Allow-Methods', 'GET, POST');
   if (!req.reports)
     req.reports = db.collection('tweets');
   next();
@@ -70,7 +76,8 @@ function postReport(req, res, next, model) {
     in_reply_to_status_id: params.in_reply_to_status_id, 
     long: coordinates[0], 
     lat: coordinates[1], 
-    display_coordinates: true
+    display_coordinates: true,
+    media_ids: params.media_ids
   };
   t.post('statuses/update', newReport, function(error, data, response) {
     if (error) return next(error);
@@ -86,15 +93,13 @@ function postReport(req, res, next, model) {
     req.reports.insert(data, {}, function(e, result) {
       if (e) return next(e);
       // if it is a comment, update the original report
-      if (model == 'comment')
-        req.reports.update({id: params.in_reply_to_status_id}, {
-            $push: {comment_ids: data.id}
-          }, {safe: true, multi: false}, 
-          function(e,r) {
-            if (e) console.error('No pude actualizar la noticia original, '+e);
-            else console.log('Comentario ingresado');
-            console.log('se mandó a pushear: '+data.id);
+      if (model == 'comment') {
+        var update = {$push: {comment_ids: data.id}};
+        req.reports.update({id: params.in_reply_to_status_id}, update, 
+                           {safe: true, multi: false}, function(e,r) {
+            if (e) console.error(e);
         });
+      }
       var json = {};
       json[model] = result;
       res.send(json);
@@ -142,6 +147,40 @@ app.get('/comments/:id', function(req, res, next) {
 
 app.post('/comments/', function(req, res, next) {
   postReport(req, res, next, 'comment');
+});
+
+function uploadFile(file) {
+  var params = {
+    media: file.buffer.toString('base64')
+  };
+  return new Promise(function (resolve, reject) {
+    t.post('media/upload', params, function(error, data, response) {
+      if (error) reject(error);
+      resolve(data);
+    });
+  });
+}
+
+app.post('/upload/', function(req, res, next) {
+  var files = req.files['file[]'],
+      promises = [];
+
+  if (!Array.isArray(files)) {
+    // just one file, send it to Twitter
+    promises.push(uploadFile(files));
+  }
+  else {
+    files.forEach(function(file) {
+      promises.push(uploadFile(file));
+    });
+  }
+
+  Promise.all(promises).then(function(files) {
+    res.send({ files: files, success: true });
+    res.end();
+  }, function(error) {
+    return next(error);
+  });
 });
 
 app.listen(28017);
