@@ -28,7 +28,7 @@ app.all('*', function(req, res, next) {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, '+
              'Content-Type, Accept, X-File-Type, X-File-Name, X-File-Size');
-  res.header('Access-Control-Allow-Methods', 'GET, POST');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT');
   if (!req.reports)
     req.reports = db.collection('tweets');
   next();
@@ -125,10 +125,18 @@ app.get('/reports/:id', function(req, res, next) {
 });
 
 app.put('/reports/:id', function(req, res, next) {
-  req.reports.update({id: req.params.id}, {$set: req.body}, 
-                    {safe: true, multi: false}, function(e, result) {
+  var query = {id: req.params.id},
+      update = {$set: req.body.report};
+  if (update.$set.denounce) {
+    var key = 'denounces.'+update.$set.denounce.reason;
+    update.$inc = {};
+    update.$inc[key] = 1;
+  }
+  delete update.$set.denounce;
+  req.reports.findAndModify(query, {}, update, {}, function(e, result) {
     if (e) return next(e);
-    res.send((result === 1) ? {msg:'success'} : {msg: 'error'});
+    var json = {report: result};
+    res.send(json);
   });
 });
 
