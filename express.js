@@ -126,14 +126,15 @@ app.get('/reports/:id', function(req, res, next) {
 
 app.put('/reports/:id', function(req, res, next) {
   var query = {id: req.params.id},
-      update = {$set: req.body.report};
+      update = {$set: req.body.report},
+      options = {new: true};
   if (update.$set.denounce) {
     var key = 'denounces.'+update.$set.denounce.reason;
     update.$inc = {};
     update.$inc[key] = 1;
   }
   delete update.$set.denounce;
-  req.reports.findAndModify(query, {}, update, {}, function(e, result) {
+  req.reports.findAndModify(query, {}, update, options, function(e, result) {
     if (e) return next(e);
     var json = {report: result};
     res.send(json);
