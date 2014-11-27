@@ -54,16 +54,37 @@ app.get('/reports', function(req, res, next) {
       $search: req.query.q,
       $language: 'es'
     };
+  if (req.query.offset && 'newest' in req.query) {
+    if (JSON.parse(req.query.newest))
+      newQuery.id = {$gt: req.query.offset};
+    else
+      newQuery.id = {$lt: req.query.offset};
+  }
 
   var params = {
-    limit: req.query.limit || 30,
-    sort: {
-      _id: -1
-    }
+    limit: req.query.limit || 9,
+    sort: {_id: -1}
   };
   req.reports.find(newQuery, params).toArray(function(e, results) {
     if (e) return next(e);
     var json = {reports: results};
+    if (results) {
+      json.meta = {
+        offset: req.query.offset || 0,
+        limit: params.limit,
+        next: {
+          newest: true, 
+          limit: params.limit, 
+          offset: results[0].id
+        }
+      };
+      if (params.limit <= results.length)
+        json.meta.previous = {
+          newest: false, 
+          limit: params.limit, 
+          offset: results[results.length-1].id
+        };
+    }
     res.send(json);
   });
 });
