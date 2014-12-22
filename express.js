@@ -1,5 +1,6 @@
 var express = require('express'),
     mongoskin = require('mongoskin'),
+    compression = require('compression'),
     bodyParser = require('body-parser'),
     multer = require('multer'),
     Promise = require('promise'),
@@ -8,6 +9,7 @@ var express = require('express'),
 var EARTH_RADIUS_KM = 6371;
 
 var app = express();
+app.use(compression());
 app.use(bodyParser());
 app.use(multer({inMemory: true}));
 app.set('etag', false);
