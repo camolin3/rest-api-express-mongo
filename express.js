@@ -255,7 +255,7 @@ function getMediaIds(tasks, req, times) {
         if (results[i].media_id) mediaIds.push(results[i].media_id);
         else if (results[i].error) errors++;
       }
-      if (mediaIds.length+errors === results.length)
+      if (mediaIds.length + errors === tasks.length)
         return resolve(mediaIds);
       if (times < 5)
         setTimeout(function() {getMediaIds(tasks, req, times+1);}, 
