@@ -62,13 +62,13 @@ app.get('/reports', function(req, res, next) {
   }
 
   var params = {
-    limit: req.query.limit || 9,
+    limit: req.query.limit || 12,
     sort: {_id: -1}
   };
   req.reports.find(newQuery, params).toArray(function(e, results) {
     if (e) return next(e);
     var json = {reports: results};
-    if (results) {
+    if (results.length) {
       json.meta = {
         offset: req.query.offset || 0,
         limit: params.limit,
@@ -84,6 +84,17 @@ app.get('/reports', function(req, res, next) {
           limit: params.limit, 
           offset: results[results.length-1].id
         };
+      // adding geolocation info
+      if (req.query.lat && req.query.lng && req.query.within) {
+        var metas = [json.meta.next];
+        if ('previous' in json.meta)
+          metas.push(json.meta.previous);
+        metas.forEach(function(meta) {
+          meta.lat = req.query.lat;
+          meta.lng = req.query.lng;
+          meta.within = req.query.within;
+        });
+      }
     }
     res.send(json);
   });
@@ -98,34 +109,42 @@ function postReport(req, res, next, model) {
     long: coordinates[0], 
     lat: coordinates[1], 
     display_coordinates: true,
-    media_ids: params.media_ids
   };
-  t.post('statuses/update', newReport, function(error, data, response) {
-    if (error) return next(error);
-    // If succefully posted on Twitter, then save it on the db
-    // adding the 'channel' attribute
-    data.channel = params.channel;
-    // fixing the id
-    data.id = data.id_str;
-    data.in_reply_to_status_id = data.in_reply_to_status_id_str;
-    // adding the comment_ids
-    if (model == 'report')
-      data.comment_ids = [];
-    req.reports.insert(data, {}, function(e, result) {
-      if (e) return next(e);
-      // if it is a comment, update the original report
-      if (model == 'comment') {
-        var update = {$push: {comment_ids: data.id}};
-        req.reports.update({id: params.in_reply_to_status_id}, update, 
-                           {safe: true, multi: false}, function(e,r) {
-            if (e) console.error(e);
+  getMediaIds(params.media_ids, req).then(
+    function(mediaIds) {
+      if (mediaIds.length)
+        newReport.media_ids = mediaIds;
+      t.post('statuses/update', newReport, function(error, data, response) {
+        if (error) return next(error);
+        // If succefully posted on Twitter, then save it on the db
+        // adding the 'channel' attribute
+        data.channel = params.channel;
+        // fixing the id
+        data.id = data.id_str;
+        data.in_reply_to_status_id = data.in_reply_to_status_id_str;
+        // adding the comment_ids
+        if (model === 'report')
+          data.comment_ids = [];
+        req.reports.insert(data, {}, function(e, result) {
+          if (e) return next(e);
+          // if it is a comment, update the original report
+          if (model === 'comment') {
+            var update = {$push: {comment_ids: data.id}};
+            req.reports.update({id: params.in_reply_to_status_id}, update, 
+                               {safe: true, multi: false}, function(e,r) {
+                if (e) console.error(e);
+            });
+          }
+          var json = {};
+          json[model] = result;
+          res.send(json);
         });
-      }
-      var json = {};
-      json[model] = result;
-      res.send(json);
-    });
-  });
+      });
+    },
+    function(error) {
+      return next(error);
+    }
+  );
 }
 
 app.post('/reports', function (req, res, next) {
@@ -183,7 +202,7 @@ function uploadFile(file) {
   var params = {
     media: file.buffer.toString('base64')
   };
-  return new Promise(function (resolve, reject) {
+  return new Promise(function(resolve, reject) {
     t.post('media/upload', params, function(error, data, response) {
       if (error) reject(error);
       resolve(data);
@@ -192,25 +211,57 @@ function uploadFile(file) {
 }
 
 app.post('/upload/', function(req, res, next) {
-  var files = req.files['file[]'],
-      promises = [];
-
-  if (!Array.isArray(files)) {
-    // just one file, send it to Twitter
-    promises.push(uploadFile(files));
-  }
-  else {
-    files.forEach(function(file) {
-      promises.push(uploadFile(file));
-    });
-  }
-
-  Promise.all(promises).then(function(files) {
-    res.send({ files: files, success: true });
+  if (!req.uploads)
+    req.uploads = db.collection('uploads');
+  var file = req.files['file[]'];
+  // 1. create a mongo doc representing a task
+  req.uploads.insert({task: '/upload/'}, {}, function(e, result) {
+    if (e) next(e);
+    // 2. response with the task ID
+    var doc = result[0];
+    res.send(doc);
     res.end();
-  }, function(error) {
-    return next(error);
+    // 3. upload the picture
+    uploadFile(file).then(
+      function(uploaded) {
+        // 4. update the doc
+        var update = {media_id: uploaded.media_id_string};
+        req.uploads.findAndModify(doc, {}, update, {}, function() {});
+      },
+      function(error) {
+        // 4.1 update the doc, warning about the error
+        var update = {error: error};
+        req.uploads.findAndModify(doc, {}, update, {}, function() {});
+      }
+    );
   });
 });
+
+function getMediaIds(tasks, req, times) {
+  if (times === undefined) times = 0;
+  return new Promise(function(resolve, reject) {
+    if (tasks === undefined) return resolve([]);
+    tasks = tasks.map(mongoskin.helper.toObjectID);
+    var query = {_id: {$in: tasks}};
+    if (!req.uploads)
+      req.uploads = db.collection('uploads');
+    req.uploads.find(query, {}).toArray(function(e, results) {
+      if (e) return reject(e);
+      // are all images ready?
+      var mediaIds = [];
+      for (var i = 0, errors = 0; i < results.length; i++) {
+        if (results[i].media_id) mediaIds.push(results[i].media_id);
+        else if (results[i].error) errors++;
+      }
+      if (mediaIds.length+errors === results.length)
+        return resolve(mediaIds);
+      if (times < 5)
+        setTimeout(function() {getMediaIds(tasks, req, times+1);}, 
+                   1000*Math.pow(2, times));
+      else
+        reject('Timeout');
+    });
+  });
+}
 
 app.listen(28017);
