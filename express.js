@@ -18,6 +18,8 @@ var db = mongoskin.db(
   'mongodb://dsas3_cl:sro1pwRjGxS1@localhost:27017/streamsaster_development', 
   {safe:true}
 );
+var tweets = db.collection('tweets'),
+    uploads = db.collection('uploads');
 
 var t = new Twit({
   consumer_key: 'qIxLeqAVHDevyS6bdUfyFmSVg',
@@ -31,8 +33,6 @@ app.all('*', function(req, res, next) {
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, '+
              'Content-Type, Accept, X-File-Type, X-File-Name, X-File-Size');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT');
-  if (!req.reports)
-    req.reports = db.collection('tweets');
   next();
 });
 
@@ -67,7 +67,7 @@ app.get('/reports', function(req, res, next) {
     limit: req.query.limit || 12,
     sort: {_id: -1}
   };
-  req.reports.find(newQuery, params).toArray(function(e, results) {
+  tweets.find(newQuery, params).toArray(function(e, results) {
     if (e) return next(e);
     var json = {reports: results};
     if (results.length) {
@@ -127,12 +127,12 @@ function postReport(req, res, next, model) {
         // adding the comment_ids
         if (model === 'report')
           data.comment_ids = [];
-        req.reports.insert(data, {}, function(e, result) {
+        tweets.insert(data, {}, function(e, result) {
           if (e) return next(e);
           // if it is a comment, update the original report
           if (model === 'comment') {
             var update = {$push: {comment_ids: data.id}};
-            req.reports.update({id: params.in_reply_to_status_id}, update, 
+            tweets.update({id: params.in_reply_to_status_id}, update, 
                                {safe: true, multi: false}, function(e,r) {
                 if (e) console.error(e);
             });
@@ -144,6 +144,7 @@ function postReport(req, res, next, model) {
       });
     },
     function(error) {
+      console.error(error);
       return next(error);
     }
   );
@@ -154,7 +155,7 @@ app.post('/reports', function (req, res, next) {
 });
 
 function getReport(req, res, next, model) {
-  req.reports.findOne(req.params, function(e, result) {
+  tweets.findOne(req.params, function(e, result) {
     if (e) return next(e);
     var json = {};
     json[model] = result;
@@ -176,7 +177,7 @@ app.put('/reports/:id', function(req, res, next) {
     update.$inc[key] = 1;
   }
   delete update.$set.denounce;
-  req.reports.findAndModify(query, {}, update, options, function(e, result) {
+  tweets.findAndModify(query, {}, update, options, function(e, result) {
     if (e) return next(e);
     var json = {report: result};
     res.send(json);
@@ -185,7 +186,7 @@ app.put('/reports/:id', function(req, res, next) {
 
 /*
 app.delete('/reports/:id', function(req, res, next) {
-  req.reports.removeById(req.params.id, function(e, result) {
+  tweets.removeById(req.params.id, function(e, result) {
     if (e) return next(e);
     res.send((result === 1) ? {msg: 'success'} : {msg: 'error'});
   });
@@ -213,11 +214,9 @@ function uploadFile(file) {
 }
 
 app.post('/upload/', function(req, res, next) {
-  if (!req.uploads)
-    req.uploads = db.collection('uploads');
   var file = req.files['file[]'];
   // 1. create a mongo doc representing a task
-  req.uploads.insert({task: '/upload/'}, {}, function(e, result) {
+  uploads.insert({task: '/upload/'}, {}, function(e, result) {
     if (e) next(e);
     // 2. response with the task ID
     var doc = result[0];
@@ -228,12 +227,12 @@ app.post('/upload/', function(req, res, next) {
       function(uploaded) {
         // 4. update the doc
         var update = {media_id: uploaded.media_id_string};
-        req.uploads.findAndModify(doc, {}, update, {}, function() {});
+        uploads.findAndModify(doc, {}, update, {}, function() {});
       },
       function(error) {
         // 4.1 update the doc, warning about the error
         var update = {error: error};
-        req.uploads.findAndModify(doc, {}, update, {}, function() {});
+        uploads.findAndModify(doc, {}, update, {}, function() {});
       }
     );
   });
@@ -243,25 +242,36 @@ function getMediaIds(tasks, req, times) {
   if (times === undefined) times = 0;
   return new Promise(function(resolve, reject) {
     if (tasks === undefined) return resolve([]);
+    if (tasks === []) return reject('Empty list of tasks');
     tasks = tasks.map(mongoskin.helper.toObjectID);
     var query = {_id: {$in: tasks}};
-    if (!req.uploads)
-      req.uploads = db.collection('uploads');
-    req.uploads.find(query, {}).toArray(function(e, results) {
+    uploads.find(query, {}).toArray(function(e, results) {
       if (e) return reject(e);
       // are all images ready?
+      if (results.length !== tasks.length)
+        reject('Error with the DB: ' + tasks + ' and ' + results + 
+               ' have different lengths');
       var mediaIds = [];
       for (var i = 0, errors = 0; i < results.length; i++) {
-        if (results[i].media_id) mediaIds.push(results[i].media_id);
-        else if (results[i].error) errors++;
+        if (results[i].media_id) 
+          mediaIds.push(results[i].media_id);
+        else 
+          if (results[i].error) errors++;
       }
-      if (mediaIds.length + errors === tasks.length)
+      if (mediaIds.length + errors === tasks.length) {
+        // TODO remove the docs from 'uploads' collection
         return resolve(mediaIds);
-      if (times < 5)
-        setTimeout(function() {getMediaIds(tasks, req, times+1);}, 
-                   1000*Math.pow(2, times));
-      else
+      }
+      if (times < 5) {
+        console.log('try again later...', Math.pow(2, times), 's');
+        console.log('results', results);
+        setTimeout(function() {
+          getMediaIds(tasks, req, times+1).then(resolve, reject);
+        }, 1000*Math.pow(2, times));
+      }
+      else {
         reject('Timeout');
+      }
     });
   });
 }
